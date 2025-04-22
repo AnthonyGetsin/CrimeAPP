@@ -12,21 +12,26 @@ from geopy.geocoders import Nominatim
 from geopy.extra.rate_limiter import RateLimiter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from folium.plugins import MarkerCluster
-from tqdm import tqdm  # For progress tracking
+from tqdm import tqdm
+from flask import Flask, jsonify
+from flask_cors import CORS
+from datetime import datetime
+import os
+from werkzeug.serving import run_simple
+
+app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
 
 # ============================================================================
-# 1. SETUP CACHING AND CONFIGURATION
+# 1. SETUP CACHING AND CONFIGURATION (Keep your original code)
 # ============================================================================
-
 CACHE_FILE = Path("geocode_cache.json")
-GEOCODING_RATE_LIMIT = 1  # Seconds between requests
-MAX_WORKERS = 5  # Threads for parallel processing
+GEOCODING_RATE_LIMIT = 1
+MAX_WORKERS = 5
 
-# Initialize geocoder with persistent cache
 geolocator = Nominatim(user_agent="berkeley_crime_mapper")
 geocode = RateLimiter(geolocator.geocode, min_delay_seconds=GEOCODING_RATE_LIMIT)
 
-# Load existing cache
 if CACHE_FILE.exists():
     with open(CACHE_FILE) as f:
         geocode_cache = json.load(f)
@@ -34,18 +39,15 @@ else:
     geocode_cache = {}
 
 def save_cache():
-    """Save cache to disk with atomic write"""
     temp_file = CACHE_FILE.with_suffix(".tmp")
     with open(temp_file, "w") as f:
         json.dump(geocode_cache, f)
     temp_file.replace(CACHE_FILE)
 
 # ============================================================================
-# 2. OPTIMIZED GEOCODING WITH CACHING AND BATCH PROCESSING
+# 2. GEOCODING AND DATA FETCHING (Keep your original code)
 # ============================================================================
-
 def geocode_address(address):
-    """Geocode with persistent cache and error handling"""
     if not address:
         return None, None
     
@@ -62,27 +64,23 @@ def geocode_address(address):
     except Exception as e:
         print(f"\nGeocoding failed for {address}: {str(e)}")
     
-    geocode_cache[cache_key] = (None, None)  # Cache failures to prevent retries
+    geocode_cache[cache_key] = (None, None)
     return None, None
 
-# ============================================================================
-# 3. DATA ACQUISITION AND PREPROCESSING
-# ============================================================================
-
 def fetch_crime_data():
-    """Fetch crime data with error handling and retries"""
     base_url = "https://services7.arcgis.com/vIHhVXjE1ToSg0Fz/arcgis/rest/services/Berkeley_PD_Cases_2016_to_Current/FeatureServer/0/query"
+    today  = datetime.utcnow()
+    start  = today - pd.Timedelta(days=60)   # last 60 days
     where_clause = (
-        "Occurred_Datetime >= DATE '2025-02-08 00:00:00' "
-        "AND Occurred_Datetime < DATE '2025-04-08 00:00:00'"
-    )
+        f"Occurred_Datetime >= DATE '{start:%Y-%m-%d} 00:00:00' "
+        f"AND Occurred_Datetime < DATE '{today:%Y-%m-%d} 00:00:00'")
 
     params = {
         "where": where_clause,
         "outFields": "*",
         "outSR": "4326",
         "f": "json",
-        "resultRecordCount": 2000  # Max allowed by the service
+        "resultRecordCount": 2000
     }
 
     for attempt in range(3):
@@ -98,11 +96,9 @@ def fetch_crime_data():
     raise Exception("Failed to fetch crime data after 3 attempts")
 
 # ============================================================================
-# 4. SPATIAL PROCESSING OPTIMIZATIONS
+# 3. SPATIAL PROCESSING (Keep your original code)
 # ============================================================================
-
 def create_spatial_index():
-    """Create street network spatial index with memoization"""
     street_network_cache = Path("berkeley_streets.gpkg")
     
     if street_network_cache.exists():
@@ -117,16 +113,49 @@ def create_spatial_index():
     return gdf_edges, str_tree, geom_to_index
 
 # ============================================================================
-# 5. MAIN PROCESSING PIPELINE
+# 4. API ENDPOINT (New addition)
 # ============================================================================
+@app.route('/api/crimes')
+def api_get_crimes():
+    """Endpoint for frontend to get crime data in JSON format"""
+    try:
+        df = fetch_crime_data()
+        df["Occurred_Datetime"] = pd.to_datetime(df["Occurred_Datetime"], unit="ms")
+        
+        # Process addresses using existing cache
+        def _coords(addr):
+            key = f"{addr}, Berkeley, CA"
+            lat, lon = geocode_cache.get(key, (None, None))
+            if lat is None:                       # cache miss → geocode now
+                lat, lon = geocode_address(addr)
+            return lat, lon
 
+        df["coords"] = df["Block_Address"].apply(_coords)
+        save_cache()
+
+
+        df[["latitude", "longitude"]] = pd.DataFrame(df["coords"].tolist(), index=df.index)
+        df = df.dropna(subset=["latitude", "longitude"])
+        
+        return jsonify({
+            "data": df.to_dict("records"),
+            "metadata": {
+                "count": len(df),
+                "last_updated": datetime.now().isoformat()
+            }
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ============================================================================
+# 5. MAIN PROCESSING PIPELINE (Keep your original code)
+# ============================================================================
 def main():
     print("Fetching crime data...")
     df = fetch_crime_data()
     df["Occurred_Datetime"] = pd.to_datetime(df["Occurred_Datetime"], unit="ms")
     
     print("\nPreprocessing addresses...")
-    # Process unique addresses first to minimize geocoding
     address_groups = df.groupby("Block_Address", observed=True)
     unique_addresses = list(address_groups.groups.keys())
     
@@ -134,21 +163,22 @@ def main():
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = {executor.submit(geocode_address, addr): addr for addr in unique_addresses}
         for future in tqdm(as_completed(futures), total=len(unique_addresses), desc="Geocoding"):
-            future.result()  # We just need to wait for completion
+            future.result()
     
-    # Save cache after batch geocoding
     save_cache()
     
-    # Add coordinates to DataFrame using cached results
     print("\nEnriching data with coordinates...")
     df["coords"] = df["Block_Address"].apply(
         lambda x: geocode_cache.get(f"{x}, Berkeley, CA", (None, None)))
     df[["latitude", "longitude"]] = pd.DataFrame(df["coords"].tolist(), index=df.index)
     df = df.dropna(subset=["latitude", "longitude"])
     
-    # Spatial processing
     print("Creating spatial index...")
     gdf_edges, str_tree, geom_to_index = create_spatial_index()
+    def find_nearest_edge(pt, *, str_tree=str_tree, geom_to_index=geom_to_index):
+        geom = str_tree.nearest(pt)
+        return geom_to_index.get(geom)
+
     
     print("Processing crime locations...")
     edge_crime_count = {}
@@ -161,12 +191,10 @@ def main():
     for edge_idx in filter(None, results):
         edge_crime_count[edge_idx] = edge_crime_count.get(edge_idx, 0) + 1
     
-    # Create map
     print("Generating visualization...")
     m = folium.Map(location=[37.87, -122.27], zoom_start=14)
     marker_cluster.add_to(m)
     
-    # Add markers
     for _, row in df.iterrows():
         folium.Marker(
             location=[row.latitude, row.longitude],
@@ -174,7 +202,6 @@ def main():
             icon=folium.Icon(color='blue', icon='info-sign')
         ).add_to(marker_cluster)
     
-    # Add crime density visualization
     for edge_idx, count in edge_crime_count.items():
         edge = gdf_edges.loc[[edge_idx]]
         folium.GeoJson(
@@ -190,7 +217,9 @@ def main():
     m.save("berkeley_crime_optimized.html")
     print("Map saved successfully!")
 
+# ============================================================================
+# 6. RUN BOTH SERVERS
+# ============================================================================
 if __name__ == "__main__":
-    start_time = time.time()
-    main()
-    print(f"Total execution time: {time.time() - start_time:.2f} seconds")
+    main()                                   # builds cache + map once
+    app.run(host="0.0.0.0", port=5000, threaded=True, use_reloader=False)

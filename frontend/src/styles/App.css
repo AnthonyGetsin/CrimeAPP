@@ -1,0 +1,81 @@
+:root {
+    --berkeley-blue: #003262;
+    --berkeley-gold: #FDB515;
+    --berkeley-light: #5F9EA0;
+  }
+  
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background-color: #f8f9fa;
+  }
+  
+  .App {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+  
+  .header {
+    background-color: var(--berkeley-blue);
+    color: white;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    border-radius: 8px;
+  }
+  
+  .header h1 {
+    margin: 0;
+  }
+  
+  .header p {
+    margin: 8px 0 0;
+    opacity: 0.9;
+  }
+  
+  .crime-feed {
+    display: flex;
+    flex-direction: column;
+  }
+
+  :root {
+  --berkeley-blue: #003262;
+  --berkeley-gold: #FDB515;
+}
+
+.app-header {
+  background: var(--berkeley-blue);
+  color: white;
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.logo {
+  color: var(--berkeley-gold);
+  font-size: 1.8rem;
+}
+
+.nav-btn {
+  background: var(--berkeley-gold);
+  color: var(--berkeley-blue);
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  margin-left: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.crime-feed {
+  max-width: 800px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}

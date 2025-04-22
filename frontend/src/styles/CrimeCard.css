@@ -1,0 +1,64 @@
+.crime-card {
+    display: flex;
+    background: white;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 4px rgba(0,50,98,0.1);
+    overflow: hidden;
+  }
+  
+  .vote-buttons {
+    background: #FDB515;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: #003262;
+    font-weight: bold;
+  }
+  
+  .upvote {
+    background: none;
+    border: none;
+    color: #003262;
+    cursor: pointer;
+    font-size: 1.2rem;
+  }
+  
+  .crime-content {
+    padding: 12px;
+    flex-grow: 1;
+  }
+  
+  .crime-content h3 {
+    color: #003262;
+    margin-top: 0;
+  }
+  
+  .crime-meta {
+    color: #5F9EA0;
+    font-size: 0.9rem;
+    display: flex;
+    gap: 16px;
+  }
+  
+  .crime-description {
+    color: #333;
+    margin: 8px 0;
+  }
+  
+  .crime-footer {
+    border-top: 1px solid #eee;
+    padding-top: 8px;
+  }
+  
+  .comments-btn {
+    background: none;
+    border: none;
+    color: #5F9EA0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.9rem;
+  }

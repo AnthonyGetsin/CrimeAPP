@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Berkeley Crime Reports</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>Berkeley Crime Reports</h1>
+            <nav>
+                <a href="/" class="active">Home</a>
+                <a href="#">About</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="posts-container">
+            {% for crime in crimes %}
+            <article class="post">
+                <div class="post-votes">
+                    <button class="vote-btn upvote">▲</button>
+                    <span class="vote-count">0</span>
+                    <button class="vote-btn downvote">▼</button>
+                </div>
+                <div class="post-content">
+                    <h2 class="post-title">
+                        <a href="{{ url_for('crime_detail', crime_id=loop.index0) }}">
+                            {{ crime.Incident_Type }}
+                        </a>
+                    </h2>
+                    <div class="post-meta">
+                        <span class="location">{{ crime.Block_Address }}</span>
+                        <span class="time">{{ crime.Occurred_Datetime }}</span>
+                    </div>
+                    <p class="post-description">{{ crime.Statute_Description[:200] }}{% if crime.Statute_Description|length > 200 %}...{% endif %}</p>
+                    <div class="post-actions">
+                        <a href="{{ url_for('crime_detail', crime_id=loop.index0) }}" class="read-more">Read More</a>
+                    </div>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2024 Berkeley Crime Reports</p>
+        </div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html> 
